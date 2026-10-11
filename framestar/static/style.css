@@ -252,6 +252,42 @@ html, body {
 .extended .hi { font-size: 30px; }
 .extended .lo { font-size: 30px; color: #8080ff; }
 
+/* mountain */
+.mtn-head, .mtn-row {
+  display: flex;
+  align-items: baseline;
+  padding: 0 40px;
+}
+
+.mtn-head {
+  color: #ff0;
+  font-size: 28px;
+  padding-top: 30px;
+  padding-bottom: 14px;
+  border-bottom: 3px solid #264ca7;
+  margin-bottom: 10px;
+}
+
+.mtn-row {
+  font-size: 40px;
+  line-height: 92px;
+}
+
+.mtn-name { flex: 1 1 auto; white-space: nowrap; }
+.mtn-elev { font-family: "Star4000 Small", monospace; font-size: 24px; color: #8080ff; margin-left: 16px; }
+.mtn-num { flex: 0 0 150px; text-align: right; }
+.mtn-range { flex-basis: 190px; color: #c8d0ff; }
+.mtn-new { flex-basis: 210px; color: #8ffdfa; }
+
+.mtn-foot {
+  position: absolute;
+  left: 40px;
+  bottom: 22px;
+  font-family: "Star4000 Small", monospace;
+  font-size: 24px;
+  color: #c8d0ff;
+}
+
 /* photos */
 .photo {
   position: absolute;

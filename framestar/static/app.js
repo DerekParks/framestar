@@ -242,6 +242,34 @@ class RadarSlide {
   destroy() { clearTimeout(this.timer); }
 }
 
+class MountainSlide {
+  constructor(cfg, ctx) { this.cfg = cfg; this.ctx = ctx; }
+
+  titles() { return ['Mountain', 'Report']; }
+
+  async prepare(root) {
+    const data = await getJson('api/mountain');
+    const cell = (cls, text) => el('span', { class: cls }, text);
+    const rows = data.sites.map((s) => el('div', { class: 'mtn-row' },
+      el('span', { class: 'mtn-name' }, s.name, el('span', { class: 'mtn-elev' }, s.elevation_ft ? `${Math.round(s.elevation_ft).toLocaleString('en-US')} ft` : '')),
+      cell('mtn-num', `${fmtNum(s.temperature)}°`),
+      cell('mtn-num mtn-range', `${fmtNum(s.temp_high)}/${fmtNum(s.temp_low)}`),
+      cell('mtn-num', s.snow_depth == null ? '--' : `${fmtNum(s.snow_depth)}"`),
+      cell('mtn-num mtn-new', s.snow_24h == null ? '--' : `${fmtNum(s.snow_24h)}"`)));
+    const newest = data.sites.map((s) => s.observed_at).filter(Boolean).sort().pop();
+    root.append(el('div', { class: 'body' }, el('div', { class: 'blue-box' },
+      el('div', { class: 'mtn-head' },
+        el('span', { class: 'mtn-name' }, 'SNOTEL Site'),
+        cell('mtn-num', 'Temp'), cell('mtn-num mtn-range', 'Hi/Lo'), cell('mtn-num', 'Depth'), cell('mtn-num mtn-new', 'New 24h')),
+      ...rows,
+      el('div', { class: 'mtn-foot' }, newest ? `As of ${this.ctx.fmt.time.format(new Date(newest))}  /  NRCS SNOTEL` : 'NRCS SNOTEL'))));
+  }
+
+  start() {}
+
+  durationMs() { return this.cfg.seconds * 1000; }
+}
+
 class Ws4kpSlide {
   constructor(cfg, ctx) { this.cfg = cfg; this.ctx = ctx; }
 
@@ -268,6 +296,7 @@ const SLIDE_TYPES = {
   radar: RadarSlide,
   ws4kp: Ws4kpSlide,
   cams: CamsSlide,
+  mountain: MountainSlide,
 };
 
 function minutesOfDay(hhmm) {

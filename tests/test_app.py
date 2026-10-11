@@ -20,7 +20,7 @@ def test_config_builds_ws4kp_src_for_requesting_host(client):
     assert src.startswith("http://frame-server.lan:8080/?kiosk=true&wide=true")
     assert "latLon=%7B%22lat%22%3A39.7392%2C%22lon%22%3A-104.9903%7D" in src
     assert "latLonQuery=Denver" in src
-    assert body["features"] == {"tempest": True, "calendar": True}
+    assert body["features"] == {"tempest": True, "calendar": True, "mountain": True}
 
 
 def test_index_and_assets_served(client):

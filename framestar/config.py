@@ -63,6 +63,11 @@ class Cam(BaseModel):
     url: str = Field(description="Direct image URL, YouTube live URL, or camstreamer.com embed URL")
 
 
+class SnotelSite(BaseModel):
+    name: str
+    triplet: str = Field(pattern=r"^\d+:[A-Z]{2}:SNTL$", description="NRCS station triplet, e.g. 335:CO:SNTL")
+
+
 class QuietHours(BaseModel):
     start: time
     end: time
@@ -114,6 +119,11 @@ class RadarSlide(BaseModel):
     seconds: int = 20
 
 
+class MountainSlide(BaseModel):
+    type: Literal["mountain"]
+    seconds: int = 20
+
+
 class CamsSlide(BaseModel):
     type: Literal["cams"]
     count: int = Field(2, ge=1)
@@ -121,7 +131,7 @@ class CamsSlide(BaseModel):
 
 
 Slide = Annotated[
-    CalendarSlide | Ws4kpSlide | TempestSlide | PhotosSlide | RadarSlide | CamsSlide,
+    CalendarSlide | Ws4kpSlide | TempestSlide | PhotosSlide | RadarSlide | CamsSlide | MountainSlide,
     Field(discriminator="type"),
 ]
 
@@ -143,6 +153,7 @@ class Config(BaseModel):
     immich: Immich | None = None
     radar_maps: dict[str, RadarMap] = Field(default_factory=dict)
     cams: list[Cam] = Field(default_factory=list)
+    snotel: list[SnotelSite] = Field(default_factory=list)
     quiet_hours: QuietHours | None = Field(None, description="Local times the display goes dark, e.g. 22:00 to 07:00")
     slides: list[Slide]
 
@@ -174,6 +185,8 @@ class Config(BaseModel):
                     raise ValueError(f"calendar slide references unknown calendars {unknown}")
                 case CamsSlide() if not self.cams:
                     raise ValueError("cams slide needs at least one cam")
+                case MountainSlide() if not self.snotel:
+                    raise ValueError("mountain slide needs at least one snotel site")
         for radar in self.radar_maps.values():
             unknown = set(radar.markers) - set(self.locations)
             if unknown:

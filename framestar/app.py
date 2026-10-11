@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from framestar import calendar, cams, radar, tempest
+from framestar import calendar, cams, radar, snotel, tempest
 from framestar.cache import TtlCache
 from framestar.config import Config, Ws4kpSlide, load_config
 from framestar.imaging import fill_frame
@@ -57,6 +57,7 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
     radar_time_cache: TtlCache[datetime] = TtlCache(60)
     radar_frame_cache: TtlCache[bytes] = TtlCache(3 * 3600, max_entries=_radar_frame_capacity(config))
     cam_source_cache: TtlCache[str] = TtlCache(3600)
+    snotel_cache: TtlCache[dict] = TtlCache(900)
     cam_image_cache: TtlCache[bytes] = TtlCache(240, max_entries=max(1, len(config.cams)), max_stale=1800)
     cam_rotation = itertools.cycle(range(len(config.cams))) if config.cams else None
 
@@ -72,7 +73,11 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
         return {
             "title": config.title,
             "timezone": config.timezone,
-            "features": {"tempest": config.tempest is not None, "calendar": bool(config.calendars)},
+            "features": {
+                "tempest": config.tempest is not None,
+                "calendar": bool(config.calendars),
+                "mountain": bool(config.snotel),
+            },
             "quiet_hours": (
                 {"start": config.quiet_hours.start.strftime("%H:%M"), "end": config.quiet_hours.end.strftime("%H:%M")}
                 if config.quiet_hours
@@ -146,6 +151,14 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
             (map_key, stamp), lambda: app.state.radar.render(map_key, radar_map, markers, when)
         )
         return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "max-age=10800"})
+
+    @app.get("/api/mountain")
+    async def get_mountain() -> dict:
+        if not config.snotel:
+            raise HTTPException(404, "no snotel sites configured")
+        return await snotel_cache.get(
+            "report", lambda: snotel.report(app.state.client, config.snotel, datetime.now(UTC))
+        )
 
     @app.get("/api/cams")
     async def get_cams(count: int = 2) -> dict:

@@ -65,6 +65,13 @@ cams:
   - name: Winter Park Town
     url: https://cams.winterparkresort.com/best-western-cam.jpg
 
+# NRCS SNOTEL sites (https://wcc.sc.egov.usda.gov/nwcc/inventory): temperature, snow depth, new snow.
+snotel:
+  - name: Fool Creek (Fraser)
+    triplet: "1186:CO:SNTL"
+  - name: Berthoud Pass
+    triplet: "335:CO:SNTL"
+
 radar_maps:
   front_range:
     name: Front Range
@@ -102,6 +109,10 @@ slides:
   - type: ws4kp
     location: fraser
     seconds: 90
+    params:
+      current-weather: "false"
+  - type: mountain
+    seconds: 20
   - type: cams
     count: 2
     seconds_each: 10
