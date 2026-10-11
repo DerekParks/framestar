@@ -17,7 +17,8 @@ def test_config_builds_ws4kp_src_for_requesting_host(client):
     ws = [s for s in body["slides"] if s["type"] == "ws4kp"]
     assert [s["name"] for s in ws] == ["Denver", "Fraser", "Norman"]
     src = ws[0]["src"]
-    assert src.startswith("http://frame-server.lan:8080/?kiosk=true&wide=true")
+    assert src.startswith("http://frame-server.lan:8080/?")
+    assert "kiosk=true" in src and "wide=true" in src
     assert "latLon=%7B%22lat%22%3A39.7392%2C%22lon%22%3A-104.9903%7D" in src
     assert "latLonQuery=Denver" in src
     assert body["features"] == {"tempest": True, "calendar": True, "mountain": True}
@@ -114,3 +115,16 @@ def test_calendar_filters_by_name(client, example_config):
     body = client.get("/api/calendar", params={"names": ["Work"]}).json()
     assert [c["name"] for c in body["calendars"]] == ["Work"]
     assert client.get("/api/calendar", params={"names": ["Nope"]}).status_code == 404
+
+
+def test_ws4kp_src_pins_every_display(client):
+    from urllib.parse import parse_qs, urlsplit
+
+    from framestar.app import WS4KP_DISPLAYS
+
+    slides = [s for s in client.get("/api/config").json()["slides"] if s["type"] == "ws4kp"]
+    for slide in slides:
+        query = parse_qs(urlsplit(slide["src"]).query)
+        assert set(WS4KP_DISPLAYS) <= set(query)
+    fraser = next(s for s in slides if s["name"] == "Fraser")
+    assert parse_qs(urlsplit(fraser["src"]).query)["current-weather"] == ["false"]

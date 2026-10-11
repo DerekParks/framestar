@@ -24,12 +24,27 @@ from framestar.imaging import fill_frame
 from framestar.immich import Image, ImmichShare, Photo
 
 STATIC_DIR = Path(__file__).parent / "static"
+WS4KP_DISPLAYS = {
+    "hazards": "true",
+    "current-weather": "true",
+    "latest-observations": "true",
+    "hourly": "true",
+    "hourly-graph": "true",
+    "travel": "false",
+    "regional-forecast": "true",
+    "local-forecast": "true",
+    "extended-forecast": "true",
+    "almanac": "true",
+    "spc-outlook": "true",
+    "radar": "true",
+}
 USER_AGENT = "framestar/0.1 (personal photo frame; https://github.com/netbymatt/ws4kp fan)"
 
 
 def ws4kp_src(config: Config, slide: Ws4kpSlide, host: str) -> str:
     location = config.locations[slide.location]
     params = {
+        **WS4KP_DISPLAYS,
         **config.ws4kp_defaults,
         **slide.params,
         "latLonQuery": location.name,
