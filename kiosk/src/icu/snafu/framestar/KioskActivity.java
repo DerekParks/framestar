@@ -54,6 +54,7 @@ public class KioskActivity extends Activity {
     settings.setMediaPlaybackRequiresUserGesture(false);
     settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
     web.setBackgroundColor(0xFF000000);
+    web.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
     web.setWebViewClient(new RetryingClient());
     web.addJavascriptInterface(new Bridge(), "FramestarKiosk");
     setContentView(web);
