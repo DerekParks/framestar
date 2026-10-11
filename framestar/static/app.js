@@ -279,7 +279,7 @@ class Ws4kpSlide {
     return new Promise((resolve) => {
       const frame = el('iframe', { class: 'ws4kp', src: this.cfg.src, allow: 'autoplay; screen-wake-lock' });
       frame.addEventListener('load', () => resolve(), { once: true });
-      root.append(frame);
+      root.append(frame, el('div', { class: 'ws4kp-place' }, `${this.cfg.name} Weather`));
       setTimeout(resolve, PREPARE_LEAD_MS);
     });
   }

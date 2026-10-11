@@ -341,6 +341,21 @@ html, body {
   z-index: 2;
 }
 
+.ws4kp-place {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  font-size: 38px;
+  color: #ff0;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  pointer-events: none;
+}
+
 iframe.ws4kp {
   width: 1280px;
   height: 800px;
