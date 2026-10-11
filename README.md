@@ -90,7 +90,16 @@ Production runs on `aquabats` (`~/framestar`, ports 8000/8080), on the same LAN 
 `config.yaml` is not in git; copy it alongside the repo. To update: `rsync` or `git pull` there,
 then `docker compose up -d --build`.
 
-When the frame changes networks, repoint its kiosk from anywhere through the jump host:
+The kiosk picks its server by Wi-Fi network name, checked at launch and on every network change.
+Build the map in with `FRAMESTAR_SSID_URLS="BoomerSooner=http://192.168.1.25:8090/;irish=http://10.0.0.117:8000/"`
+or replace it on the device without a rebuild:
+
+```sh
+adb shell am start -n icu.snafu.framestar/.KioskActivity --es ssid_urls 'irish=http://10.0.0.117:8000/'
+```
+
+On an unmapped network it keeps its fallback URL (`FRAMESTAR_URL`, or the last VIEW intent).
+To repoint it by hand from anywhere through the jump host:
 
 ```sh
 device/repoint-frame.sh                      # defaults: JUMP=aquabats SUBNET=10.0.0 URL=http://10.0.0.117:8000/

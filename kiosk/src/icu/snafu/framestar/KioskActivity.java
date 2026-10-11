@@ -1,9 +1,15 @@
 package icu.snafu.framestar;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
 import android.net.Uri;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -26,18 +32,27 @@ public class KioskActivity extends Activity {
   private static final String TAG = "Framestar";
   private static final String PREFS = "kiosk";
   private static final String PREF_URL = "url";
+  private static final String PREF_SSID_URLS = "ssid_urls";
   private static final long RETRY_MS = 15_000;
   private static final long WAKE_MS = 5_000;
   private static final long ESCAPE_HOLD_MS = 3_000;
   private static final float ESCAPE_SLOP_PX = 80;
 
   private final Handler handler = new Handler(Looper.getMainLooper());
-  private final Runnable retry = () -> load(url());
+  private final Runnable retry = this::reload;
   private final Runnable escape = this::openSettings;
   private final float[] escapeX = new float[3];
   private final float[] escapeY = new float[3];
   private boolean escapeArmed;
   private WebView web;
+  private String loadedUrl;
+  private final BroadcastReceiver networkChanged = new BroadcastReceiver() {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+      String url = urlForNetwork();
+      if (url != null && !url.equals(loadedUrl)) load(url);
+    }
+  };
 
   @Override
   protected void onCreate(Bundle state) {
@@ -59,6 +74,13 @@ public class KioskActivity extends Activity {
     web.addJavascriptInterface(new Bridge(), "FramestarKiosk");
     setContentView(web);
     handleIntent(getIntent());
+    registerReceiver(networkChanged, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+  }
+
+  @Override
+  protected void onDestroy() {
+    unregisterReceiver(networkChanged);
+    super.onDestroy();
   }
 
   @Override
@@ -67,13 +89,42 @@ public class KioskActivity extends Activity {
     handleIntent(intent);
   }
 
+  /** VIEW data persists as the fallback URL; extra "ssid_urls" ("SSID=url;SSID=url") replaces the network map. */
   private void handleIntent(Intent intent) {
     WebView.setWebContentsDebuggingEnabled(intent != null && intent.getBooleanExtra("debug", false));
+    SharedPreferences.Editor prefs = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
+    String ssidUrls = intent == null ? null : intent.getStringExtra("ssid_urls");
+    if (ssidUrls != null) prefs.putString(PREF_SSID_URLS, ssidUrls);
     Uri data = intent == null ? null : intent.getData();
+    if (data != null) prefs.putString(PREF_URL, data.toString());
+    prefs.apply();
     if (data != null) {
-      getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(PREF_URL, data.toString()).apply();
+      load(data.toString());
+    } else {
+      String networkUrl = urlForNetwork();
+      load(networkUrl != null ? networkUrl : url());
     }
-    load(url());
+  }
+
+  private String urlForNetwork() {
+    String ssid = currentSsid();
+    if (ssid == null) return null;
+    String map = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_SSID_URLS, getString(R.string.default_ssid_urls));
+    for (String entry : map.split(";")) {
+      int eq = entry.indexOf('=');
+      if (eq > 0 && entry.substring(0, eq).trim().equals(ssid)) return entry.substring(eq + 1).trim();
+    }
+    Log.i(TAG, "no URL mapped for network " + ssid);
+    return null;
+  }
+
+  private String currentSsid() {
+    WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+    WifiInfo info = wifi == null ? null : wifi.getConnectionInfo();
+    if (info == null || info.getNetworkId() == -1) return null;
+    String ssid = info.getSSID();
+    if (ssid == null || ssid.equals("<unknown ssid>")) return null;
+    return ssid.startsWith("\"") && ssid.endsWith("\"") ? ssid.substring(1, ssid.length() - 1) : ssid;
   }
 
   private String url() {
@@ -81,9 +132,14 @@ public class KioskActivity extends Activity {
     return prefs.getString(PREF_URL, getString(R.string.default_url));
   }
 
+  private void reload() {
+    load(loadedUrl != null ? loadedUrl : url());
+  }
+
   private void load(String url) {
     handler.removeCallbacks(retry);
     Log.i(TAG, "loading " + url);
+    loadedUrl = url;
     web.loadUrl(url);
   }
 

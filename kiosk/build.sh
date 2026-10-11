@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Builds kiosk/build/framestar-kiosk.apk without Gradle. Needs a JDK plus Android build-tools 34 and platform 34.
-# FRAMESTAR_URL sets the URL used until one is sent with a VIEW intent.
+# FRAMESTAR_URL is the fallback URL; FRAMESTAR_SSID_URLS ("SSID=url;SSID=url") picks one per Wi-Fi network.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 URL="${FRAMESTAR_URL:-http://10.0.0.117:8000/}"
+SSID_URLS="${FRAMESTAR_SSID_URLS:-}"
 BT="$ANDROID_HOME/build-tools/34.0.0"
 JAR="$ANDROID_HOME/platforms/android-34/android.jar"
 KS="${FRAMESTAR_KEYSTORE:-$HOME/.android/framestar-kiosk.keystore}"
@@ -13,7 +14,10 @@ KS="${FRAMESTAR_KEYSTORE:-$HOME/.android/framestar-kiosk.keystore}"
 rm -rf build && mkdir -p build/gen build/classes build/res/values
 cat > build/res/values/url.xml <<XML
 <?xml version="1.0" encoding="utf-8"?>
-<resources><string name="default_url" translatable="false">$URL</string></resources>
+<resources>
+  <string name="default_url" translatable="false">$URL</string>
+  <string name="default_ssid_urls" translatable="false">$SSID_URLS</string>
+</resources>
 XML
 
 "$BT/aapt2" compile --dir build/res -o build/res.zip
