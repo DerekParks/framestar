@@ -85,3 +85,11 @@ def test_continued_flag_for_event_crossing_midnight():
     assert party_day2["end"] == "2026-10-12T00:30:00-06:00"
     trip = days[1]["events"][0]
     assert trip["all_day"] and not trip["continued"]
+
+
+def test_plain_text_strips_emoji_keeps_degrees_and_accents():
+    from framestar.calendar import plain_text
+
+    assert plain_text("\U0001F3C0 Oklahoma City Thunder @ Atlanta Hawks") == "Oklahoma City Thunder @ Atlanta Hawks"
+    assert plain_text("Café run \u2744\ufe0f 20°") == "Café run 20°"
+    assert plain_text("\U0001F468\u200D\U0001F469\u200D\U0001F467 Family dinner") == "Family dinner"

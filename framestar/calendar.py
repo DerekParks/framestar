@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -13,6 +14,13 @@ import recurring_ical_events
 from framestar.config import CalendarFeed
 
 log = logging.getLogger(__name__)
+
+EMOJI = re.compile("[\U00010000-\U0010FFFF\u2600-\u27BF\u2B00-\u2BFF\uFE0E\uFE0F\u200D\u20E3]")
+
+
+def plain_text(value: object) -> str:
+    """Star4000 has no emoji glyphs, and colour-emoji fallback blanks the slide on WebView."""
+    return " ".join(EMOJI.sub("", str(value)).split())
 
 
 @dataclass(frozen=True)
@@ -47,12 +55,12 @@ def expand(ics: bytes, feed: CalendarFeed, tz: ZoneInfo, window_start: datetime,
             end = start + component.decoded("DURATION")
         else:
             end = start + (timedelta(days=1) if all_day else timedelta())
-        location = str(component.get("LOCATION", "")).strip() or None
+        location = plain_text(component.get("LOCATION", "")) or None
         events.append(
             Event(
                 calendar=feed.name,
                 color=feed.color,
-                title=str(component.get("SUMMARY", "(busy)")).strip(),
+                title=plain_text(component.get("SUMMARY", "")) or "(busy)",
                 start=start,
                 end=end,
                 all_day=all_day,
