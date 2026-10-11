@@ -2,11 +2,15 @@
 
 A WeatherStar 4000 style kiosk for a hacked Android photo frame. It cycles through these slides:
 
-- **calendar**: the next N days of one or more Google Calendars (iCal feeds), scrolling if they overflow
-- **ws4kp**: a full [WeatherStar 4000+](https://github.com/netbymatt/ws4kp) run for a location (Denver, Fraser, Norman, ...)
+- **calendar**: the next N days of chosen iCal feeds, with its own title, scrolling if it overflows
+- **ws4kp**: a [WeatherStar 4000+](https://github.com/netbymatt/ws4kp) run for a location, labelled with the city
 - **tempest**: current conditions and a 5-day forecast from a WeatherFlow Tempest station
 - **photos**: a random handful from an Immich share link, composed on the server over a blurred fill
 - **radar**: an animated hour of NEXRAD composite radar, rendered on the server into a single JPEG per frame
+- **cams**: still frames from webcams (direct images, YouTube live, camstreamer embeds)
+- **mountain**: NRCS SNOTEL temperature, snow depth and new snow for a list of sites
+
+From `quiet_hours` start to end the screen goes dark; otherwise Android's auto-brightness handles dimming.
 
 A crawl along the bottom shows the Tempest reading and upcoming events.
 
@@ -78,6 +82,16 @@ framestar formats its own times in the configured `timezone`, but ws4kp uses the
 
 The front end is plain ES2020 and CSS with no build step. It avoids what WebView 106 lacks:
 `:has()`, CSS nesting, `color-mix()`, `oklch()` and 4/8-digit hex colours.
+
+## Gotchas
+
+- ws4kp remembers enabled screens in localStorage. framestar pins every screen in each link
+  (`WS4KP_DISPLAYS` in `app.py`), so turn screens off with `ws4kp_defaults` or a slide's `params`.
+- A ws4kp city slot is about 2 minutes; the long-scrolling hourly screen alone would fill it.
+- The kiosk renders in software: the frame's Mali-400 fails some WebView 106 GPU shaders.
+- YAML reads an unquoted `22:00` as the number 1320, so quote clock times.
+- Calendar text is stripped of emoji; Star4000 has none and the fallback blanked the slide.
+- Never `stop adbd` from `adb shell` on the frame; use `adb tcpip 5555`. Its IP changes every boot.
 
 ## Develop
 
