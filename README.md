@@ -84,6 +84,22 @@ framestar formats its own times in the configured `timezone`, but ws4kp uses the
 The front end is plain ES2020 and CSS with no build step. It avoids what WebView 106 lacks:
 `:has()`, CSS nesting, `color-mix()`, `oklch()` and 4/8-digit hex colours.
 
+## Deployment
+
+Production runs on `aquabats` (`~/framestar`, ports 8000/8080), on the same LAN as the frame.
+`config.yaml` is not in git; copy it alongside the repo. To update: `rsync` or `git pull` there,
+then `docker compose up -d --build`.
+
+When the frame changes networks, repoint its kiosk from anywhere through the jump host:
+
+```sh
+device/repoint-frame.sh                      # defaults: JUMP=aquabats SUBNET=10.0.0 URL=http://10.0.0.117:8000/
+```
+
+It scans the subnet for ADB, tunnels to each answer over SSH, confirms `ro.es_frame.product=PF1007L`,
+and sends the URL. The frame's ADB takes one network connection at a time, so the script drops any
+existing ones first.
+
 ## Gotchas
 
 - ws4kp remembers enabled screens in localStorage. framestar pins every screen in each link
