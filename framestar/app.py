@@ -9,10 +9,11 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
@@ -81,12 +82,13 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
         }
 
     @app.get("/api/calendar")
-    async def get_calendar() -> dict:
+    async def get_calendar(names: Annotated[list[str] | None, Query()] = None) -> dict:
+        feeds = [c for c in config.calendars if not names or c.name in names]
+        if not feeds:
+            raise HTTPException(404, "no matching calendars")
         return await agenda_cache.get(
-            "agenda",
-            lambda: calendar.agenda(
-                app.state.client, config.calendars, config.tz, config.calendar_days, datetime.now(UTC)
-            ),
+            tuple(f.name for f in feeds),
+            lambda: calendar.agenda(app.state.client, feeds, config.tz, config.calendar_days, datetime.now(UTC)),
         )
 
     @app.get("/api/tempest")

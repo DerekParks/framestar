@@ -6,7 +6,7 @@ from framestar.config import Config, Immich
 
 def test_example_config_is_valid(example_config):
     assert example_config.tz.key == "America/Denver"
-    assert [s.type for s in example_config.slides][:3] == ["calendar", "ws4kp", "tempest"]
+    assert [s.type for s in example_config.slides][:4] == ["calendar", "calendar", "ws4kp", "tempest"]
 
 
 def test_unknown_location_rejected(example_dict):
@@ -80,4 +80,10 @@ def test_gallery_slides_need_positive_counts(example_dict, field):
 def test_cams_slide_requires_cams(example_dict):
     del example_dict["cams"]
     with pytest.raises(ValidationError, match="cams slide"):
+        Config.model_validate(example_dict)
+
+
+def test_calendar_slide_rejects_unknown_calendar(example_dict):
+    example_dict["slides"][0]["calendars"] = ["Family", "Thunder"]
+    with pytest.raises(ValidationError, match="Thunder"):
         Config.model_validate(example_dict)

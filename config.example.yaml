@@ -82,6 +82,12 @@ radar_maps:
 slides:
   - type: calendar
     seconds: 30
+    title: [Family, Calendar]
+    calendars: [Family]
+  - type: calendar
+    seconds: 25
+    title: [Work, Schedule]
+    calendars: [Work]
   - type: ws4kp
     location: denver
     seconds: 120

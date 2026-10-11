@@ -86,6 +86,8 @@ class RadarMap(BaseModel):
 class CalendarSlide(BaseModel):
     type: Literal["calendar"]
     seconds: int = 30
+    title: list[str] = Field(default_factory=lambda: ["Upcoming", "Events"], min_length=1, max_length=2)
+    calendars: list[str] | None = Field(None, description="Calendar names to show; all when omitted")
 
 
 class Ws4kpSlide(BaseModel):
@@ -167,6 +169,9 @@ class Config(BaseModel):
                     raise ValueError("photos slide needs an immich: section")
                 case CalendarSlide() if not self.calendars:
                     raise ValueError("calendar slide needs at least one calendar")
+                case CalendarSlide(calendars=names) if names and set(names) - {c.name for c in self.calendars}:
+                    unknown = sorted(set(names) - {c.name for c in self.calendars})
+                    raise ValueError(f"calendar slide references unknown calendars {unknown}")
                 case CamsSlide() if not self.cams:
                     raise ValueError("cams slide needs at least one cam")
         for radar in self.radar_maps.values():

@@ -74,10 +74,11 @@ function eventWhen(event, fmt) {
 class CalendarSlide {
   constructor(cfg, ctx) { this.cfg = cfg; this.ctx = ctx; }
 
-  titles() { return ['Upcoming', 'Events']; }
+  titles() { return this.cfg.title; }
 
   async prepare(root) {
-    const data = await getJson('api/calendar');
+    const query = (this.cfg.calendars || []).map((n) => `names=${encodeURIComponent(n)}`).join('&');
+    const data = await getJson(`api/calendar${query ? `?${query}` : ''}`);
     const box = el('div', { class: 'blue-box' });
     this.agenda = el('div', { class: 'agenda' });
     this.agenda.append(el('div', { class: 'legend' },

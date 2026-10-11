@@ -104,3 +104,13 @@ def test_cam_re_resolves_source_when_snapshot_fails(client, example_config):
         content=src.getvalue(), headers={"content-type": "image/jpeg"}
     )
     assert client.get("/api/cams/0.jpg").status_code == 200
+
+
+@respx.mock
+def test_calendar_filters_by_name(client, example_config):
+    empty = b"BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//t//EN\nEND:VCALENDAR\n"
+    for feed in example_config.calendars:
+        respx.get(feed.url).respond(content=empty)
+    body = client.get("/api/calendar", params={"names": ["Work"]}).json()
+    assert [c["name"] for c in body["calendars"]] == ["Work"]
+    assert client.get("/api/calendar", params={"names": ["Nope"]}).status_code == 404
