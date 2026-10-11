@@ -83,6 +83,8 @@ snotel:
     triplet: "970:CO:SNTL"
   - name: Copper Mountain
     triplet: "415:CO:SNTL"
+  - name: Steamboat (Tower)
+    triplet: "825:CO:SNTL"
 
 radar_maps:
   front_range:

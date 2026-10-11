@@ -269,12 +269,12 @@ html, body {
 }
 
 .mtn-row {
-  font-size: 38px;
-  height: 88px;
+  font-size: 36px;
+  height: 76px;
 }
 
-.mtn-name { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 40px; }
-.mtn-elev { display: block; font-family: "Star4000 Small", monospace; font-size: 22px; line-height: 26px; color: #8080ff; }
+.mtn-name { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 36px; }
+.mtn-elev { display: block; font-family: "Star4000 Small", monospace; font-size: 20px; line-height: 22px; color: #8080ff; }
 .mtn-num { flex: 0 0 130px; text-align: right; }
 .mtn-range { flex-basis: 180px; color: #c8d0ff; }
 .mtn-new { flex-basis: 180px; color: #8ffdfa; }
