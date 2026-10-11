@@ -65,7 +65,9 @@ adb shell am start -a android.intent.action.VIEW -d http://10.0.0.117:8000/ -n i
 ```
 
 Holding three fingers still for three seconds opens Android Settings. `--ez debug true` on that
-`am start` enables WebView remote debugging until the next launch. `kiosk/build.sh` needs build-tools 34,
+`am start` enables WebView remote debugging until the next launch. During quiet hours the kiosk
+drops its keep-awake flag so Android's screen timeout turns the panel off; the frame ships with
+that timeout set to never, so set one: `adb shell settings put system screen_off_timeout 60000`. `kiosk/build.sh` needs build-tools 34,
 platform 34 and a JDK 17 `javac`: build-tools 34's `d8` crashes on JDK 21 class files.
 
 For testing against a desktop over USB, `adb reverse tcp:8000 tcp:8000 && adb reverse tcp:8080 tcp:8080`

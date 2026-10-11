@@ -198,7 +198,7 @@ class PhotosSlide extends GallerySlide {
 class CamsSlide extends GallerySlide {
   async items() {
     const cams = (await getJson(`api/cams?count=${this.cfg.count}`)).cams;
-    return cams.map((cam) => ({ ...cam, url: `${cam.url}?t=${Date.now()}` }));
+    return cams;
   }
 
   captionFor(cam) { return `${cam.name}  LIVE`; }
@@ -309,8 +309,9 @@ function setTitles(lines) {
   $('#title-2').textContent = lines[1] || '';
 }
 
-function startClock(fmt) {
+function startClock({ fmt, quiet }) {
   const tick = () => {
+    if (quiet && quiet.active()) return;
     const now = new Date();
     $('#clock-time').textContent = fmt.clockTime.format(now);
     $('#clock-date').textContent = fmt.clockDate.format(now).toUpperCase();
@@ -344,9 +345,14 @@ async function crawlMessages(config, fmt) {
   return messages.length ? messages : [config.title];
 }
 
-async function runCrawl(config, fmt) {
+async function runCrawl(config, { fmt, quiet }) {
   const text = $('#crawl-text');
   for (;;) {
+    if (quiet && quiet.active()) {
+      text.textContent = '';
+      await sleep(QUIET_POLL_MS);
+      continue;
+    }
     text.textContent = (await crawlMessages(config, fmt)).join('   --   ');
     const distance = STAGE_W + text.scrollWidth;
     const passMs = (distance / CRAWL_PX_PER_SEC) * 1000;
@@ -448,8 +454,8 @@ async function main() {
   };
   setDisplay(true);
   setTitles([config.title, '']);
-  startClock(ctx.fmt);
-  runCrawl(config, ctx.fmt);
+  startClock(ctx);
+  runCrawl(config, ctx);
   runShow(config, ctx);
 }
 

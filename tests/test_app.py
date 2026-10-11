@@ -86,3 +86,21 @@ def test_cam_image_is_framed(client, example_config):
     response = client.get(f"/api/cams/{town}.jpg")
     assert response.status_code == 200
     assert Image.open(io.BytesIO(response.content)).size == (1280, 800)
+
+
+@respx.mock
+def test_cam_re_resolves_source_when_snapshot_fails(client, example_config):
+    import io
+
+    from PIL import Image
+
+    src = io.BytesIO()
+    Image.new("RGB", (640, 360), (5, 5, 5)).save(src, "JPEG")
+    embed = example_config.cams[0].url
+    embeds = iter(["deadvideo01", "livevideo01"])
+    respx.get(embed).mock(side_effect=lambda req: httpx.Response(200, text=f"youtube.com/embed/{next(embeds)}"))
+    respx.get("https://i.ytimg.com/vi/deadvideo01/maxresdefault_live.jpg").respond(404)
+    respx.get("https://i.ytimg.com/vi/livevideo01/maxresdefault_live.jpg").respond(
+        content=src.getvalue(), headers={"content-type": "image/jpeg"}
+    )
+    assert client.get("/api/cams/0.jpg").status_code == 200

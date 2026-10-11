@@ -56,7 +56,7 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
     radar_time_cache: TtlCache[datetime] = TtlCache(60)
     radar_frame_cache: TtlCache[bytes] = TtlCache(3 * 3600, max_entries=_radar_frame_capacity(config))
     cam_source_cache: TtlCache[str] = TtlCache(3600)
-    cam_image_cache: TtlCache[bytes] = TtlCache(240, max_entries=max(1, len(config.cams)))
+    cam_image_cache: TtlCache[bytes] = TtlCache(240, max_entries=max(1, len(config.cams)), max_stale=1800)
     cam_rotation = itertools.cycle(range(len(config.cams))) if config.cams else None
 
     @app.get("/api/config")
@@ -158,9 +158,15 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
             raise HTTPException(404, "unknown cam")
         cam = config.cams[index]
 
+        async def resolve() -> str:
+            return await cam_source_cache.get(cam.url, lambda: cams.snapshot_url(app.state.client, cam.url))
+
         async def load() -> bytes:
-            source = await cam_source_cache.get(cam.url, lambda: cams.snapshot_url(app.state.client, cam.url))
-            raw = await cams.fetch_snapshot(app.state.client, source)
+            try:
+                raw = await cams.fetch_snapshot(app.state.client, await resolve())
+            except (httpx.HTTPError, ValueError):
+                cam_source_cache.drop(cam.url)
+                raw = await cams.fetch_snapshot(app.state.client, await resolve())
             return await asyncio.to_thread(fill_frame, raw)
 
         jpeg = await cam_image_cache.get(index, load)

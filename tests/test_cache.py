@@ -78,3 +78,41 @@ def test_concurrent_misses_load_once():
 
     assert asyncio.run(run()) == [1] * 5
     assert calls == 1
+
+
+def test_stale_value_expires_after_max_stale():
+    clock = Clock()
+    cache = TtlCache(10, max_stale=20, clock=clock)
+
+    async def ok():
+        return "good"
+
+    async def boom():
+        raise RuntimeError("down")
+
+    async def run():
+        await cache.get("k", ok)
+        clock.now = 25
+        assert await cache.get("k", boom) == "good"
+        clock.now = 31
+        with pytest.raises(RuntimeError):
+            await cache.get("k", boom)
+
+    asyncio.run(run())
+
+
+def test_drop_forces_reload():
+    cache = TtlCache(100)
+    calls = 0
+
+    async def load():
+        nonlocal calls
+        calls += 1
+        return calls
+
+    async def run():
+        await cache.get("k", load)
+        cache.drop("k")
+        return await cache.get("k", load)
+
+    assert asyncio.run(run()) == 2

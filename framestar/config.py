@@ -67,10 +67,12 @@ class QuietHours(BaseModel):
     start: time
     end: time
 
-    def contains(self, at: time) -> bool:
-        if self.start <= self.end:
-            return self.start <= at < self.end
-        return at >= self.start or at < self.end
+    @field_validator("start", "end", mode="before")
+    @classmethod
+    def quoted_clock_time(cls, v: object) -> object:
+        if isinstance(v, (str, time)):
+            return v
+        raise ValueError('write clock times as quoted strings, e.g. "22:00"; YAML reads a bare 22:00 as the number 1320')
 
 
 class RadarMap(BaseModel):
@@ -100,8 +102,8 @@ class TempestSlide(BaseModel):
 
 class PhotosSlide(BaseModel):
     type: Literal["photos"]
-    count: int = 5
-    seconds_each: int = 8
+    count: int = Field(5, ge=1)
+    seconds_each: int = Field(8, ge=1)
 
 
 class RadarSlide(BaseModel):
@@ -112,8 +114,8 @@ class RadarSlide(BaseModel):
 
 class CamsSlide(BaseModel):
     type: Literal["cams"]
-    count: int = 2
-    seconds_each: int = 10
+    count: int = Field(2, ge=1)
+    seconds_each: int = Field(10, ge=1)
 
 
 Slide = Annotated[

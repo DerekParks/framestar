@@ -6,3 +6,4 @@ config.yaml
 device/backups/
 device/downloads/
 kiosk/build/
+.env

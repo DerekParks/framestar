@@ -59,23 +59,22 @@ def test_immich_bad_share_url_rejected(example_dict):
         Config.model_validate(example_dict)
 
 
-@pytest.mark.parametrize(
-    ("start", "end", "at", "quiet"),
-    [
-        ("22:00", "07:00", "23:30", True),
-        ("22:00", "07:00", "03:00", True),
-        ("22:00", "07:00", "07:00", False),
-        ("22:00", "07:00", "21:59", False),
-        ("01:00", "05:00", "02:00", True),
-        ("01:00", "05:00", "06:00", False),
-    ],
-)
-def test_quiet_hours_wraps_midnight(start, end, at, quiet):
-    from datetime import time
+def test_quiet_hours_rejects_unquoted_yaml_time():
+    import yaml
 
     from framestar.config import QuietHours
 
-    assert QuietHours(start=start, end=end).contains(time.fromisoformat(at)) is quiet
+    with pytest.raises(ValidationError, match="quoted"):
+        QuietHours.model_validate(yaml.safe_load("start: 22:00\nend: 07:00"))
+    assert QuietHours.model_validate(yaml.safe_load('start: "22:00"\nend: "07:00"')).start.hour == 22
+
+
+@pytest.mark.parametrize("field", ["count", "seconds_each"])
+def test_gallery_slides_need_positive_counts(example_dict, field):
+    cams = next(s for s in example_dict["slides"] if s["type"] == "cams")
+    cams[field] = 0
+    with pytest.raises(ValidationError, match=field):
+        Config.model_validate(example_dict)
 
 
 def test_cams_slide_requires_cams(example_dict):

@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -14,27 +15,19 @@ import android.view.View;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-/**
- * Full-screen home app that shows the framestar page.
- *
- * <p>Repoint it without rebuilding (the URL persists):
- * {@code adb shell am start -a android.intent.action.VIEW -d http://10.0.0.117:8000/ -n icu.snafu.framestar/.KioskActivity}
- *
- * <p>The page can switch the backlight with {@code FramestarKiosk.setDisplayOn(bool)}.
- *
- * <p>Remote WebView debugging only while launched with {@code --ez debug true}.
- * Holding three fingers still for three seconds opens Android Settings.
- */
+/** Full-screen home app showing the framestar page; the page drives the screen via {@code FramestarKiosk}. */
 public class KioskActivity extends Activity {
   private static final String TAG = "Framestar";
   private static final String PREFS = "kiosk";
   private static final String PREF_URL = "url";
   private static final long RETRY_MS = 15_000;
+  private static final long WAKE_MS = 5_000;
   private static final long ESCAPE_HOLD_MS = 3_000;
   private static final float ESCAPE_SLOP_PX = 80;
 
@@ -49,7 +42,11 @@ public class KioskActivity extends Activity {
   @Override
   protected void onCreate(Bundle state) {
     super.onCreate(state);
-    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_FULLSCREEN);
+    getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        | WindowManager.LayoutParams.FLAG_FULLSCREEN
+        | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+        | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
     web = new WebView(this);
     WebSettings settings = web.getSettings();
     settings.setJavaScriptEnabled(true);
@@ -89,6 +86,7 @@ public class KioskActivity extends Activity {
     web.loadUrl(url);
   }
 
+  /** Off: drop the keep-awake flag and dim to minimum so the OS screen timeout turns the panel off. */
   private final class Bridge {
     @JavascriptInterface
     public void setDisplayOn(boolean on) {
@@ -98,16 +96,38 @@ public class KioskActivity extends Activity {
             ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
             : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF;
         getWindow().setAttributes(attrs);
+        if (on) {
+          getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+          wakeScreen();
+        } else {
+          getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
         Log.i(TAG, "display " + (on ? "on" : "off"));
       });
     }
   }
 
+  @SuppressWarnings("deprecation")
+  private void wakeScreen() {
+    PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+    PowerManager.WakeLock lock = pm.newWakeLock(
+        PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, TAG + ":wake");
+    lock.acquire(WAKE_MS);
+  }
+
   private final class RetryingClient extends WebViewClient {
     @Override
     public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-      if (!request.isForMainFrame()) return;
-      Log.w(TAG, "load failed: " + error.getDescription() + "; retrying");
+      if (request.isForMainFrame()) scheduleRetry(view, String.valueOf(error.getDescription()));
+    }
+
+    @Override
+    public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+      if (request.isForMainFrame()) scheduleRetry(view, "HTTP " + response.getStatusCode());
+    }
+
+    private void scheduleRetry(WebView view, String reason) {
+      Log.w(TAG, "load failed: " + reason + "; retrying");
       view.loadData("<body style='background:#000'></body>", "text/html", null);
       handler.removeCallbacks(retry);
       handler.postDelayed(retry, RETRY_MS);

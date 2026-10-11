@@ -16,11 +16,18 @@ class _Entry[T]:
 
 
 class TtlCache[T]:
-    """Async memo keyed by arbitrary hashables. A failed refresh serves the stale value if one exists."""
+    """Async memo keyed by arbitrary hashables. A failed refresh serves the stale value for up to max_stale seconds."""
 
-    def __init__(self, ttl_seconds: float, max_entries: int = 512, clock: Callable[[], float] = time.monotonic):
+    def __init__(
+        self,
+        ttl_seconds: float,
+        max_entries: int = 512,
+        max_stale: float | None = None,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self._ttl = ttl_seconds
         self._max = max_entries
+        self._max_stale = max_stale
         self._clock = clock
         self._entries: dict[Hashable, _Entry[T]] = {}
         self._locks: dict[Hashable, asyncio.Lock] = {}
@@ -37,15 +44,22 @@ class TtlCache[T]:
             try:
                 value = await load()
             except Exception:
-                if entry is None:
+                if entry is None or not self._servable_stale(entry):
+                    self._entries.pop(key, None)
                     raise
                 log.exception("refresh of %r failed; serving stale value", key)
                 return entry.value
             self._put(key, value)
             return value
 
+    def drop(self, key: Hashable) -> None:
+        self._entries.pop(key, None)
+
     def _fresh(self, entry: _Entry[T]) -> bool:
         return self._clock() - entry.fetched_at < self._ttl
+
+    def _servable_stale(self, entry: _Entry[T]) -> bool:
+        return self._max_stale is None or self._clock() - entry.fetched_at < self._ttl + self._max_stale
 
     def _put(self, key: Hashable, value: T) -> None:
         self._entries.pop(key, None)

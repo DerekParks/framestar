@@ -11,7 +11,6 @@ JAR="$ANDROID_HOME/platforms/android-34/android.jar"
 KS="${FRAMESTAR_KEYSTORE:-$HOME/.android/framestar-kiosk.keystore}"
 
 rm -rf build && mkdir -p build/gen build/classes build/res/values
-cp -r res/. build/res/
 cat > build/res/values/url.xml <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <resources><string name="default_url" translatable="false">$URL</string></resources>
