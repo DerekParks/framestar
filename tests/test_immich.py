@@ -99,7 +99,7 @@ def test_fill_frame_letterboxes_portrait_onto_backdrop():
 
     from PIL import Image
 
-    from framestar.immich import fill_frame
+    from framestar.imaging import fill_frame
 
     src = io.BytesIO()
     Image.new("RGB", (600, 900), (250, 20, 20)).save(src, "JPEG")

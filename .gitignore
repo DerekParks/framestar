@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 config.yaml
 .cache/
+device/backups/
+device/downloads/
+kiosk/build/

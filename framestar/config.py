@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import time
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -57,6 +58,21 @@ class Immich(BaseModel):
         raise ValueError(f"unrecognised Immich share URL: {self.share_url}")
 
 
+class Cam(BaseModel):
+    name: str
+    url: str = Field(description="Direct image URL, YouTube live URL, or camstreamer.com embed URL")
+
+
+class QuietHours(BaseModel):
+    start: time
+    end: time
+
+    def contains(self, at: time) -> bool:
+        if self.start <= self.end:
+            return self.start <= at < self.end
+        return at >= self.start or at < self.end
+
+
 class RadarMap(BaseModel):
     name: str
     lat: float
@@ -94,8 +110,14 @@ class RadarSlide(BaseModel):
     seconds: int = 20
 
 
+class CamsSlide(BaseModel):
+    type: Literal["cams"]
+    count: int = 2
+    seconds_each: int = 10
+
+
 Slide = Annotated[
-    CalendarSlide | Ws4kpSlide | TempestSlide | PhotosSlide | RadarSlide,
+    CalendarSlide | Ws4kpSlide | TempestSlide | PhotosSlide | RadarSlide | CamsSlide,
     Field(discriminator="type"),
 ]
 
@@ -116,6 +138,8 @@ class Config(BaseModel):
     tempest: Tempest | None = None
     immich: Immich | None = None
     radar_maps: dict[str, RadarMap] = Field(default_factory=dict)
+    cams: list[Cam] = Field(default_factory=list)
+    quiet_hours: QuietHours | None = Field(None, description="Local times the display goes dark, e.g. 22:00 to 07:00")
     slides: list[Slide]
 
     @field_validator("timezone")
@@ -141,6 +165,8 @@ class Config(BaseModel):
                     raise ValueError("photos slide needs an immich: section")
                 case CalendarSlide() if not self.calendars:
                     raise ValueError("calendar slide needs at least one calendar")
+                case CamsSlide() if not self.cams:
+                    raise ValueError("cams slide needs at least one cam")
         for radar in self.radar_maps.values():
             unknown = set(radar.markers) - set(self.locations)
             if unknown:

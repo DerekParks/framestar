@@ -46,6 +46,25 @@ immich:
   password: null
   shuffle: true
 
+quiet_hours:
+  start: "22:00"
+  end: "07:00"
+
+# Still frames refresh about every 5 minutes. camstreamer embeds and YouTube live links resolve to the stream's live thumbnail.
+cams:
+  - name: Snow Stake
+    url: https://camstreamer.com/embed/mXhcYGDptt4PPiSEJVwxPNmUZjj1CNAjSkrBdj3s
+  - name: Lunch Rock
+    url: https://camstreamer.com/embed/FkuQtJjEJaLOpalZiTsiVrZUw5IG3fCjMS3Vcc8h
+  - name: Base
+    url: https://camstreamer.com/embed/c909b9be0f94f0d/S-50783
+  - name: Snoasis
+    url: https://camstreamer.com/embed/e6H5OSc0NDBQR7KCR0zZnKCV0qqX1YF1b8egwy8x
+  - name: Tubing Hill
+    url: https://camstreamer.com/embed/8v334V7UDYwodQScLzh63Y6BaqoAQNmj5qhEjsjF
+  - name: Winter Park Town
+    url: https://cams.winterparkresort.com/best-western-cam.jpg
+
 radar_maps:
   front_range:
     name: Front Range
@@ -77,9 +96,15 @@ slides:
   - type: ws4kp
     location: fraser
     seconds: 90
+  - type: cams
+    count: 2
+    seconds_each: 10
   - type: photos
     count: 5
     seconds_each: 8
+  - type: cams
+    count: 2
+    seconds_each: 10
   - type: ws4kp
     location: norman
     seconds: 90

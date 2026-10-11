@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import itertools
 import json
 import os
 import random
@@ -14,9 +16,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
-from framestar import calendar, radar, tempest
+from framestar import calendar, cams, radar, tempest
 from framestar.cache import TtlCache
 from framestar.config import Config, Ws4kpSlide, load_config
+from framestar.imaging import fill_frame
 from framestar.immich import Image, ImmichShare, Photo
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -52,6 +55,9 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
     photo_cache: TtlCache[Image] = TtlCache(3600, max_entries=24)
     radar_time_cache: TtlCache[datetime] = TtlCache(60)
     radar_frame_cache: TtlCache[bytes] = TtlCache(3 * 3600, max_entries=_radar_frame_capacity(config))
+    cam_source_cache: TtlCache[str] = TtlCache(3600)
+    cam_image_cache: TtlCache[bytes] = TtlCache(240, max_entries=max(1, len(config.cams)))
+    cam_rotation = itertools.cycle(range(len(config.cams))) if config.cams else None
 
     @app.get("/api/config")
     async def get_config(request: Request) -> dict:
@@ -66,6 +72,11 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
             "title": config.title,
             "timezone": config.timezone,
             "features": {"tempest": config.tempest is not None, "calendar": bool(config.calendars)},
+            "quiet_hours": (
+                {"start": config.quiet_hours.start.strftime("%H:%M"), "end": config.quiet_hours.end.strftime("%H:%M")}
+                if config.quiet_hours
+                else None
+            ),
             "slides": slides,
         }
 
@@ -133,6 +144,27 @@ def create_app(config: Config, client: httpx.AsyncClient | None = None) -> FastA
             (map_key, stamp), lambda: app.state.radar.render(map_key, radar_map, markers, when)
         )
         return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "max-age=10800"})
+
+    @app.get("/api/cams")
+    async def get_cams(count: int = 2) -> dict:
+        if cam_rotation is None:
+            raise HTTPException(404, "no cams configured")
+        picks = [next(cam_rotation) for _ in range(min(count, len(config.cams)))]
+        return {"cams": [{"url": f"/api/cams/{i}.jpg", "name": config.cams[i].name} for i in picks]}
+
+    @app.get("/api/cams/{index}.jpg")
+    async def get_cam(index: int) -> Response:
+        if not 0 <= index < len(config.cams):
+            raise HTTPException(404, "unknown cam")
+        cam = config.cams[index]
+
+        async def load() -> bytes:
+            source = await cam_source_cache.get(cam.url, lambda: cams.snapshot_url(app.state.client, cam.url))
+            raw = await cams.fetch_snapshot(app.state.client, source)
+            return await asyncio.to_thread(fill_frame, raw)
+
+        jpeg = await cam_image_cache.get(index, load)
+        return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
     return app

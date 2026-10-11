@@ -126,6 +126,19 @@ html, body {
   will-change: transform;
 }
 
+#quiet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1280px;
+  height: 800px;
+  z-index: 100;
+  background: #000;
+  display: none;
+}
+
+#quiet.shown { display: block; }
+
 /* calendar */
 .agenda {
   padding: 20px 40px;

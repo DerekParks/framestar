@@ -59,3 +59,30 @@ def test_radar_frames_listing(client):
     assert body["name"] == "Front Range"
     assert body["frames"][-1]["url"] == "/api/radar/front_range/202610111510.jpg"
     assert len(body["frames"]) == 12
+
+
+def test_config_exposes_quiet_hours(client):
+    assert client.get("/api/config").json()["quiet_hours"] == {"start": "22:00", "end": "07:00"}
+
+
+def test_cams_rotate_round_robin(client, example_config):
+    names = [c.name for c in example_config.cams]
+    first = [c["name"] for c in client.get("/api/cams?count=4").json()["cams"]]
+    second = [c["name"] for c in client.get("/api/cams?count=4").json()["cams"]]
+    assert first + second == (names + names)[:8]
+    assert client.get("/api/cams/99.jpg").status_code == 404
+
+
+@respx.mock
+def test_cam_image_is_framed(client, example_config):
+    import io
+
+    from PIL import Image
+
+    src = io.BytesIO()
+    Image.new("RGB", (1920, 1080), (10, 120, 200)).save(src, "JPEG")
+    town = len(example_config.cams) - 1
+    respx.get(example_config.cams[town].url).respond(content=src.getvalue(), headers={"content-type": "image/jpeg"})
+    response = client.get(f"/api/cams/{town}.jpg")
+    assert response.status_code == 200
+    assert Image.open(io.BytesIO(response.content)).size == (1280, 800)

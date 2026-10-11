@@ -7,6 +7,7 @@ const CRAWL_REFRESH_MS = 5 * 60 * 1000;
 const RELOAD_AFTER_MS = 6 * 60 * 60 * 1000;
 const RADAR_STEP_MS = 450;
 const RADAR_HOLD_MS = 2000;
+const QUIET_POLL_MS = 30 * 1000;
 
 const $ = (sel) => document.querySelector(sel);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -152,19 +153,19 @@ class TempestSlide {
   durationMs() { return this.cfg.seconds * 1000; }
 }
 
-class PhotosSlide {
+class GallerySlide {
   constructor(cfg, ctx) { this.cfg = cfg; this.ctx = ctx; this.timers = []; }
 
   fullscreen() { return true; }
 
   async prepare(root) {
-    const data = await getJson(`api/photos?count=${this.cfg.count}`);
-    if (!data.photos.length) throw new Error('photo album is empty');
-    const loaded = await Promise.all(data.photos.map((p) => loadImage(p.url).then((img) => ({ img, meta: p }), () => null)));
-    this.photos = loaded.filter(Boolean);
-    if (!this.photos.length) throw new Error('no photos loaded');
+    const items = await this.items();
+    if (!items.length) throw new Error(`${this.cfg.type}: nothing to show`);
+    const loaded = await Promise.all(items.map((item) => loadImage(item.url).then((img) => ({ img, item }), () => null)));
+    this.shots = loaded.filter(Boolean);
+    if (!this.shots.length) throw new Error(`${this.cfg.type}: no images loaded`);
     this.caption = el('div', { class: 'caption' });
-    for (const { img } of this.photos) {
+    for (const { img } of this.shots) {
       img.className = 'photo';
       root.append(img);
     }
@@ -172,19 +173,35 @@ class PhotosSlide {
   }
 
   show(i) {
-    this.photos.forEach(({ img }, j) => img.classList.toggle('shown', i === j));
-    const { meta } = this.photos[i];
-    const parts = [meta.city, meta.taken_at ? this.ctx.fmt.monthYear.format(new Date(meta.taken_at)) : null];
-    this.caption.textContent = parts.filter(Boolean).join(', ');
+    this.shots.forEach(({ img }, j) => img.classList.toggle('shown', i === j));
+    this.caption.textContent = this.captionFor(this.shots[i].item);
   }
 
   start() {
-    this.photos.forEach((_, i) => this.timers.push(setTimeout(() => this.show(i), i * this.cfg.seconds_each * 1000)));
+    this.shots.forEach((_, i) => this.timers.push(setTimeout(() => this.show(i), i * this.cfg.seconds_each * 1000)));
   }
 
-  durationMs() { return (this.photos ? this.photos.length : this.cfg.count) * this.cfg.seconds_each * 1000; }
+  durationMs() { return (this.shots ? this.shots.length : this.cfg.count) * this.cfg.seconds_each * 1000; }
 
   destroy() { this.timers.forEach(clearTimeout); }
+}
+
+class PhotosSlide extends GallerySlide {
+  async items() { return (await getJson(`api/photos?count=${this.cfg.count}`)).photos; }
+
+  captionFor(photo) {
+    const parts = [photo.city, photo.taken_at ? this.ctx.fmt.monthYear.format(new Date(photo.taken_at)) : null];
+    return parts.filter(Boolean).join(', ');
+  }
+}
+
+class CamsSlide extends GallerySlide {
+  async items() {
+    const cams = (await getJson(`api/cams?count=${this.cfg.count}`)).cams;
+    return cams.map((cam) => ({ ...cam, url: `${cam.url}?t=${Date.now()}` }));
+  }
+
+  captionFor(cam) { return `${cam.name}  LIVE`; }
 }
 
 class RadarSlide {
@@ -249,7 +266,43 @@ const SLIDE_TYPES = {
   photos: PhotosSlide,
   radar: RadarSlide,
   ws4kp: Ws4kpSlide,
+  cams: CamsSlide,
 };
+
+function minutesOfDay(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+class QuietHours {
+  constructor(spec, timeZone) {
+    this.start = minutesOfDay(spec.start);
+    this.end = minutesOfDay(spec.end);
+    this.clock = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  }
+
+  active(now = new Date()) {
+    const parts = Object.fromEntries(this.clock.formatToParts(now).map((p) => [p.type, p.value]));
+    const minute = Number(parts.hour) * 60 + Number(parts.minute);
+    return this.start <= this.end
+      ? minute >= this.start && minute < this.end
+      : minute >= this.start || minute < this.end;
+  }
+}
+
+function setDisplay(on) {
+  $('#quiet').classList.toggle('shown', !on);
+  if (window.FramestarKiosk) window.FramestarKiosk.setDisplayOn(on);
+}
+
+async function sleepThroughQuietHours(quiet) {
+  if (!quiet || !quiet.active()) return;
+  setDisplay(false);
+  while (quiet.active()) await sleep(QUIET_POLL_MS);
+  setDisplay(true);
+  window.location.reload();
+  await new Promise(() => {});
+}
 
 function setTitles(lines) {
   $('#title-1').textContent = lines[0] || '';
@@ -333,6 +386,7 @@ async function runShow(config, ctx) {
   let index = Number(query.get('start') || 0) % config.slides.length;
   let current = null;
   let failures = 0;
+  await sleepThroughQuietHours(ctx.quiet);
   let next = prepareSlide(config.slides[index], ctx);
   for (;;) {
     const prepared = await next;
@@ -363,6 +417,12 @@ async function runShow(config, ctx) {
       window.location.reload();
       return;
     }
+    if (ctx.quiet && ctx.quiet.active()) {
+      await sleep(Math.min(duration, PREPARE_LEAD_MS));
+      if (current.slide.destroy) current.slide.destroy();
+      current.root.remove();
+      await sleepThroughQuietHours(ctx.quiet);
+    }
     next = prepareSlide(config.slides[index], ctx);
     const [result] = await Promise.all([next, sleep(Math.min(duration, PREPARE_LEAD_MS))]);
     next = Promise.resolve(result);
@@ -382,7 +442,11 @@ async function main() {
       await sleep(10000);
     }
   }
-  const ctx = { fmt: new Formatters(config.timezone) };
+  const ctx = {
+    fmt: new Formatters(config.timezone),
+    quiet: config.quiet_hours ? new QuietHours(config.quiet_hours, config.timezone) : null,
+  };
+  setDisplay(true);
   setTitles([config.title, '']);
   startClock(ctx.fmt);
   runCrawl(config, ctx.fmt);

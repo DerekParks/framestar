@@ -41,14 +41,38 @@ Debug params: `?start=3` starts at slide 3, and `?hold` stays on the first slide
 
 ## The frame (Aimor = Allwinner PF1007L)
 
-Follow Wes Bos's [PF1007L guide](https://github.com/wesbos/photo-frame-dashboard/blob/main/docs/pf1007l-start-here.md).
-Read [the AiMOR remote root shell writeup](https://github.com/wesbos/photo-frame-dashboard/blob/main/docs/aimor-remote-root-shell.md)
-**before** the frame touches Wi-Fi. Then:
+Background is in Wes Bos's [PF1007L notes](https://github.com/wesbos/photo-frame-dashboard/blob/main/docs/pf1007l-start-here.md).
+The AiMOR home app [runs root shell commands sent by its vendor server](https://github.com/wesbos/photo-frame-dashboard/blob/main/docs/aimor-remote-root-shell.md),
+so it gets disabled, not merely replaced. This unit (firmware `...PF1007L-321-OS-AIMOR.0.20260410`)
+ships with root ADB over USB, so no boot patching is needed.
 
-1. Install WebView 106 and the kiosk app from that repo. Set its `DEFAULT_URL` to `http://<server>:8000/`.
-2. Set the time zone, which ships as New York: `adb shell setprop persist.sys.timezone America/Denver`.
-   framestar's own slides format times in `timezone` from the config, but ws4kp uses the device clock.
-3. The page is designed for 1280×800, the panel's native size, and scales to any other size.
+```sh
+adb shell pm disable com.efercro.os.aimor     # vendor launcher + remote root shell
+adb shell pm disable com.yhk.qeota            # vendor OTA updater
+device/webview-swap.sh device/downloads/webview.apk   # stock WebView 44 -> 106 (--rollback undoes)
+JAVA_HOME=<jdk17> FRAMESTAR_URL=http://10.0.0.117:8000/ kiosk/build.sh
+adb install -r kiosk/build/framestar-kiosk.apk
+```
+
+WebView 106 is the LineageOS prebuilt pinned by SHA-256 in `device/webview-swap.sh`:
+`https://raw.githubusercontent.com/LineageOS/android_external_chromium-webview_prebuilt_arm/4b0ae494a7dd/webview.apk`.
+Android 6 does not extract a system app's native libraries, so the script installs them beside the APK.
+
+`kiosk/` is a home-screen WebView app, so it starts on boot. It persists the last URL it was sent:
+
+```sh
+adb shell am start -a android.intent.action.VIEW -d http://10.0.0.117:8000/ -n icu.snafu.framestar/.KioskActivity
+```
+
+Holding three fingers still for three seconds opens Android Settings. `--ez debug true` on that
+`am start` enables WebView remote debugging until the next launch. `kiosk/build.sh` needs build-tools 34,
+platform 34 and a JDK 17 `javac`: build-tools 34's `d8` crashes on JDK 21 class files.
+
+For testing against a desktop over USB, `adb reverse tcp:8000 tcp:8000 && adb reverse tcp:8080 tcp:8080`
+and point the kiosk at `http://127.0.0.1:8000/`.
+
+framestar formats its own times in the configured `timezone`, but ws4kp uses the device clock:
+`adb shell setprop persist.sys.timezone America/Denver`.
 
 The front end is plain ES2020 and CSS with no build step. It avoids what WebView 106 lacks:
 `:has()`, CSS nesting, `color-mix()`, `oklch()` and 4/8-digit hex colours.

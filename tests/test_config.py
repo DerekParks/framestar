@@ -57,3 +57,28 @@ def test_immich_bad_share_url_rejected(example_dict):
     example_dict["immich"]["share_url"] = "https://photos.example.com/albums/123"
     with pytest.raises(ValidationError, match="unrecognised Immich share URL"):
         Config.model_validate(example_dict)
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "at", "quiet"),
+    [
+        ("22:00", "07:00", "23:30", True),
+        ("22:00", "07:00", "03:00", True),
+        ("22:00", "07:00", "07:00", False),
+        ("22:00", "07:00", "21:59", False),
+        ("01:00", "05:00", "02:00", True),
+        ("01:00", "05:00", "06:00", False),
+    ],
+)
+def test_quiet_hours_wraps_midnight(start, end, at, quiet):
+    from datetime import time
+
+    from framestar.config import QuietHours
+
+    assert QuietHours(start=start, end=end).contains(time.fromisoformat(at)) is quiet
+
+
+def test_cams_slide_requires_cams(example_dict):
+    del example_dict["cams"]
+    with pytest.raises(ValidationError, match="cams slide"):
+        Config.model_validate(example_dict)
