@@ -53,6 +53,7 @@ ships with root ADB over USB, so no boot patching is needed.
 ```sh
 adb shell pm disable com.efercro.os.aimor     # vendor launcher + remote root shell
 adb shell pm disable com.yhk.qeota            # vendor OTA updater
+adb shell pm disable com.DeviceTest           # system-uid app that can re-enable any package
 device/webview-swap.sh device/downloads/webview.apk   # stock WebView 44 -> 106 (--rollback undoes)
 JAVA_HOME=<jdk17> FRAMESTAR_URL=http://10.0.0.117:8000/ kiosk/build.sh
 adb install -r kiosk/build/framestar-kiosk.apk
