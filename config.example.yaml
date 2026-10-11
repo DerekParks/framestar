@@ -75,8 +75,14 @@ cams:
 snotel:
   - name: Fool Creek (Fraser)
     triplet: "1186:CO:SNTL"
+  - name: High Lonesome
+    triplet: "1187:CO:SNTL"
   - name: Berthoud Pass
     triplet: "335:CO:SNTL"
+  - name: Jones Pass
+    triplet: "970:CO:SNTL"
+  - name: Copper Mountain
+    triplet: "415:CO:SNTL"
 
 radar_maps:
   front_range:
