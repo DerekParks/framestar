@@ -62,3 +62,50 @@ def test_individual_share_uses_link_assets_and_slug():
             return await ImmichShare(client, Immich(share_url=f"{BASE}/s/frame")).photos()
 
     assert [p.id for p in asyncio.run(run())] == ["x"]
+
+
+@respx.mock
+def test_password_share_logs_in_and_relogs_on_expiry():
+    logins = iter(["tok1", "tok2"])
+    login = respx.post(f"{BASE}/api/shared-links/login", params={"key": "k1"}).mock(
+        side_effect=lambda request: httpx.Response(
+            201, json={}, headers={"set-cookie": f"immich_shared_link_token={next(logins)}; Path=/; HttpOnly"}
+        )
+    )
+    seen_cookies = []
+
+    def me(request):
+        cookie = request.headers.get("cookie", "")
+        seen_cookies.append(cookie)
+        if cookie == "immich_shared_link_token=tok2":
+            return httpx.Response(200, json={"assets": [{"id": "x", "type": "IMAGE"}], "album": None})
+        return httpx.Response(401, json={"message": "Invalid share key"})
+
+    respx.get(f"{BASE}/api/shared-links/me").mock(side_effect=me)
+
+    async def run():
+        async with httpx.AsyncClient() as client:
+            share = ImmichShare(client, Immich(share_url=f"{BASE}/share/k1", password="pw"))
+            return await share.photos()
+
+    assert [p.id for p in asyncio.run(run())] == ["x"]
+    assert login.call_count == 2
+    assert login.calls[0].request.content == b'{"password":"pw"}'
+    assert seen_cookies == ["immich_shared_link_token=tok1", "immich_shared_link_token=tok2"]
+
+
+def test_fill_frame_letterboxes_portrait_onto_backdrop():
+    import io
+
+    from PIL import Image
+
+    from framestar.immich import fill_frame
+
+    src = io.BytesIO()
+    Image.new("RGB", (600, 900), (250, 20, 20)).save(src, "JPEG")
+    framed = Image.open(io.BytesIO(fill_frame(src.getvalue())))
+    assert framed.size == (1280, 800)
+    center = framed.getpixel((640, 400))
+    edge = framed.getpixel((5, 400))
+    assert center[0] > 200
+    assert 0 < edge[0] < 150

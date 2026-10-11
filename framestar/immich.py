@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import io
 from dataclasses import dataclass
 
 import httpx
+from PIL import Image as PILImage
+from PIL import ImageEnhance, ImageFilter, ImageOps
 
 from framestar.config import Immich
 
@@ -19,6 +22,18 @@ class Photo:
 class Image:
     content: bytes
     media_type: str
+
+
+def fill_frame(photo: bytes, width: int = 1280, height: int = 800) -> bytes:
+    """Fit the photo inside width x height over a blurred, dimmed cover-crop of itself."""
+    image = ImageOps.exif_transpose(PILImage.open(io.BytesIO(photo))).convert("RGB")
+    backdrop = ImageOps.fit(image, (width // 10, height // 10)).filter(ImageFilter.GaussianBlur(3))
+    backdrop = ImageEnhance.Brightness(backdrop.resize((width, height), PILImage.Resampling.BILINEAR)).enhance(0.45)
+    fitted = ImageOps.contain(image, (width, height), PILImage.Resampling.LANCZOS)
+    backdrop.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2))
+    out = io.BytesIO()
+    backdrop.save(out, "JPEG", quality=85, optimize=True)
+    return out.getvalue()
 
 
 def _from_asset_dto(asset: dict) -> Photo | None:
@@ -43,14 +58,44 @@ def photos_from_bucket(bucket: dict | list) -> list[Photo]:
     ]
 
 
+SESSION_COOKIE = "immich_shared_link_token"
+
+
 class ImmichShare:
     def __init__(self, client: httpx.AsyncClient, immich: Immich):
         self._client = client
         self._base = immich.base_url
         self._auth = immich.auth_params
+        self._password = immich.password
+        self._session: str | None = None
+        self._login_lock = asyncio.Lock()
+
+    async def _login(self, stale: str | None) -> None:
+        async with self._login_lock:
+            if self._session != stale:
+                return
+            response = await self._client.post(
+                f"{self._base}/api/shared-links/login", params=self._auth, json={"password": self._password}
+            )
+            response.raise_for_status()
+            token = response.cookies.get(SESSION_COOKIE)
+            if not token:
+                raise RuntimeError(f"Immich login set no {SESSION_COOKIE} cookie")
+            self._session = token
+
+    async def _send(self, path: str, params: dict) -> tuple[httpx.Response, str | None]:
+        session = self._session
+        headers = {"Cookie": f"{SESSION_COOKIE}={session}"} if session else None
+        response = await self._client.get(f"{self._base}/api{path}", params={**params, **self._auth}, headers=headers)
+        return response, session
 
     async def _get(self, path: str, **params) -> httpx.Response:
-        response = await self._client.get(f"{self._base}/api{path}", params={**params, **self._auth})
+        if self._password is not None and self._session is None:
+            await self._login(None)
+        response, session = await self._send(path, params)
+        if response.status_code == 401 and self._password is not None:
+            await self._login(session)
+            response, _ = await self._send(path, params)
         response.raise_for_status()
         return response
 
@@ -75,4 +120,5 @@ class ImmichShare:
 
     async def preview(self, asset_id: str) -> Image:
         response = await self._get(f"/assets/{asset_id}/thumbnail", size="preview")
-        return Image(response.content, response.headers.get("content-type", "image/jpeg"))
+        framed = await asyncio.to_thread(fill_frame, response.content)
+        return Image(framed, "image/jpeg")

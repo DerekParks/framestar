@@ -5,7 +5,7 @@ A WeatherStar 4000 style kiosk for a hacked Android photo frame. It cycles throu
 - **calendar**: the next N days of one or more Google Calendars (iCal feeds), scrolling if they overflow
 - **ws4kp**: a full [WeatherStar 4000+](https://github.com/netbymatt/ws4kp) run for a location (Denver, Fraser, Norman, ...)
 - **tempest**: current conditions and a 5-day forecast from a WeatherFlow Tempest station
-- **photos**: a random handful from a public Immich share link
+- **photos**: a random handful from an Immich share link, composed on the server over a blurred fill
 - **radar**: an animated hour of NEXRAD composite radar, rendered on the server into a single JPEG per frame
 
 A crawl along the bottom shows the Tempest reading and upcoming events.
@@ -37,7 +37,7 @@ Debug params: `?start=3` starts at slide 3, and `?hold` stays on the first slide
 | --- | --- |
 | Google Calendar | Calendar settings → *Integrate calendar* → **Secret address in iCal format**. You don't need to make the calendar public. |
 | Tempest | <https://tempestwx.com/settings/tokens> → create a token. The station ID is in your station's URL. |
-| Immich | Album → Share → *Create link* (no password). Paste the whole `/share/<key>` or `/s/<slug>` URL. |
+| Immich | Album → Share → *Create link*. Paste the whole `/share/<key>` or `/s/<slug>` URL, plus `password:` if the link has one. |
 
 ## The frame (Aimor = Allwinner PF1007L)
 

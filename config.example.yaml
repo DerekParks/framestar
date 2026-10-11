@@ -43,6 +43,7 @@ tempest:
 # Immich → album → Share → Create link. Paste the whole link.
 immich:
   share_url: https://photos.example.com/share/REPLACE
+  password: null
   shuffle: true
 
 radar_maps:

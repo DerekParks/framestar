@@ -39,6 +39,7 @@ class Tempest(BaseModel):
 
 class Immich(BaseModel):
     share_url: str = Field(description="Public share link, e.g. https://photos.example.com/share/<key> or /s/<slug>")
+    password: str | None = None
     shuffle: bool = True
 
     @property
