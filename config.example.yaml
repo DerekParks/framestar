@@ -8,6 +8,12 @@ ws4kp_defaults:
   wide: "true"
   scanLines: "false"
   units-select: us
+  hourly: "false"
+  latest-observations: "false"
+  regional-forecast: "false"
+  almanac: "false"
+  spc-outlook: "false"
+  radar: "false"
 
 locations:
   denver:
