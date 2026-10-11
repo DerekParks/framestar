@@ -1,0 +1,16 @@
+services:
+  framestar:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${FRAMESTAR_PORT:-8000}:8000"
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+
+  ws4kp:
+    build:
+      context: https://github.com/netbymatt/ws4kp.git#v7.1.6
+      dockerfile: Dockerfile.server
+    restart: unless-stopped
+    ports:
+      - "${WS4KP_PORT:-8080}:8080"

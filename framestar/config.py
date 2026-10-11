@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+import yaml
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+class Location(BaseModel):
+    name: str
+    lat: float
+    lon: float
+
+
+class CalendarFeed(BaseModel):
+    name: str
+    url: str
+    color: str = "#ffff00"
+
+    @field_validator("color")
+    @classmethod
+    def six_digit_hex(cls, v: str) -> str:
+        if not HEX_COLOR.match(v):
+            raise ValueError("color must be #rrggbb; WebView 106 mangles other hex forms")
+        return v
+
+
+class Tempest(BaseModel):
+    station_id: int
+    token: str
+    name: str = "Tempest"
+
+
+class Immich(BaseModel):
+    share_url: str = Field(description="Public share link, e.g. https://photos.example.com/share/<key> or /s/<slug>")
+    shuffle: bool = True
+
+    @property
+    def base_url(self) -> str:
+        parts = urlsplit(self.share_url)
+        return f"{parts.scheme}://{parts.netloc}"
+
+    @property
+    def auth_params(self) -> dict[str, str]:
+        path = urlsplit(self.share_url).path.strip("/").split("/")
+        if len(path) == 2 and path[0] == "share":
+            return {"key": path[1]}
+        if len(path) == 2 and path[0] == "s":
+            return {"slug": path[1]}
+        raise ValueError(f"unrecognised Immich share URL: {self.share_url}")
+
+
+class RadarMap(BaseModel):
+    name: str
+    lat: float
+    lon: float
+    zoom: int = Field(7, ge=3, le=10)
+    markers: list[str] = Field(default_factory=list, description="Location keys to pin on the map")
+
+
+class CalendarSlide(BaseModel):
+    type: Literal["calendar"]
+    seconds: int = 30
+
+
+class Ws4kpSlide(BaseModel):
+    type: Literal["ws4kp"]
+    location: str
+    seconds: int = 120
+    params: dict[str, str] = Field(default_factory=dict, description="Extra ws4kp permalink params, e.g. radar: 'false'")
+
+
+class TempestSlide(BaseModel):
+    type: Literal["tempest"]
+    seconds: int = 20
+
+
+class PhotosSlide(BaseModel):
+    type: Literal["photos"]
+    count: int = 5
+    seconds_each: int = 8
+
+
+class RadarSlide(BaseModel):
+    type: Literal["radar"]
+    map: str
+    seconds: int = 20
+
+
+Slide = Annotated[
+    CalendarSlide | Ws4kpSlide | TempestSlide | PhotosSlide | RadarSlide,
+    Field(discriminator="type"),
+]
+
+
+class Config(BaseModel):
+    title: str = "Framestar"
+    timezone: str = "America/Denver"
+    ws4kp_url: str = Field(
+        "http://{host}:8080/",
+        description="ws4kp base URL as the frame sees it; {host} becomes the hostname the frame used to reach framestar",
+    )
+    ws4kp_defaults: dict[str, str] = Field(
+        default_factory=lambda: {"kiosk": "true", "wide": "true", "scanLines": "false", "units-select": "us"}
+    )
+    calendar_days: int = 7
+    calendars: list[CalendarFeed] = Field(default_factory=list)
+    locations: dict[str, Location] = Field(default_factory=dict)
+    tempest: Tempest | None = None
+    immich: Immich | None = None
+    radar_maps: dict[str, RadarMap] = Field(default_factory=dict)
+    slides: list[Slide]
+
+    @field_validator("timezone")
+    @classmethod
+    def known_zone(cls, v: str) -> str:
+        try:
+            ZoneInfo(v)
+        except ZoneInfoNotFoundError as e:
+            raise ValueError(f"unknown time zone {v!r}") from e
+        return v
+
+    @model_validator(mode="after")
+    def references_resolve(self) -> Config:
+        for slide in self.slides:
+            match slide:
+                case Ws4kpSlide(location=key) if key not in self.locations:
+                    raise ValueError(f"ws4kp slide references unknown location {key!r}")
+                case RadarSlide(map=key) if key not in self.radar_maps:
+                    raise ValueError(f"radar slide references unknown radar map {key!r}")
+                case TempestSlide() if self.tempest is None:
+                    raise ValueError("tempest slide needs a tempest: section")
+                case PhotosSlide() if self.immich is None:
+                    raise ValueError("photos slide needs an immich: section")
+                case CalendarSlide() if not self.calendars:
+                    raise ValueError("calendar slide needs at least one calendar")
+        for radar in self.radar_maps.values():
+            unknown = set(radar.markers) - set(self.locations)
+            if unknown:
+                raise ValueError(f"radar map {radar.name!r} has unknown markers {sorted(unknown)}")
+        if self.immich is not None:
+            self.immich.auth_params
+        return self
+
+    @property
+    def tz(self) -> ZoneInfo:
+        return ZoneInfo(self.timezone)
+
+
+def load_config(path: Path) -> Config:
+    return Config.model_validate(yaml.safe_load(path.read_text()))

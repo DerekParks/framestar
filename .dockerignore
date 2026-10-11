@@ -1,0 +1,5 @@
+.venv
+.git
+tests
+config.yaml
+**/__pycache__

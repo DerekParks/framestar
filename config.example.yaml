@@ -1,0 +1,87 @@
+title: Parks Family
+timezone: America/Denver
+
+# ws4kp as the frame reaches it. {host} is whatever hostname the frame used for framestar.
+ws4kp_url: "http://{host}:8080/"
+ws4kp_defaults:
+  kiosk: "true"
+  wide: "true"
+  scanLines: "false"
+  units-select: us
+
+locations:
+  denver:
+    name: Denver
+    lat: 39.7392
+    lon: -104.9903
+  fraser:
+    name: Fraser
+    lat: 39.9447
+    lon: -105.8172
+  norman:
+    name: Norman
+    lat: 35.2226
+    lon: -97.4395
+
+# Google Calendar → Settings → (calendar) → Integrate calendar → "Secret address in iCal format".
+# The public address works too if the calendar is public.
+calendar_days: 7
+calendars:
+  - name: Family
+    url: https://calendar.google.com/calendar/ical/FAMILY_CALENDAR_ID/private-SECRET/basic.ics
+    color: "#ffd700"
+  - name: Work
+    url: https://calendar.google.com/calendar/ical/WORK_CALENDAR_ID/private-SECRET/basic.ics
+    color: "#00e0ff"
+
+# Personal access token from https://tempestwx.com/settings/tokens
+tempest:
+  station_id: 12345
+  token: REPLACE
+  name: Backyard
+
+# Immich → album → Share → Create link. Paste the whole link.
+immich:
+  share_url: https://photos.example.com/share/REPLACE
+  shuffle: true
+
+radar_maps:
+  front_range:
+    name: Front Range
+    lat: 39.85
+    lon: -105.3
+    zoom: 8
+    markers: [denver, fraser]
+  oklahoma:
+    name: Oklahoma
+    lat: 35.4
+    lon: -97.5
+    zoom: 7
+    markers: [norman]
+
+slides:
+  - type: calendar
+    seconds: 30
+  - type: ws4kp
+    location: denver
+    seconds: 120
+  - type: tempest
+    seconds: 20
+  - type: radar
+    map: front_range
+    seconds: 20
+  - type: photos
+    count: 5
+    seconds_each: 8
+  - type: ws4kp
+    location: fraser
+    seconds: 90
+  - type: photos
+    count: 5
+    seconds_each: 8
+  - type: ws4kp
+    location: norman
+    seconds: 90
+  - type: radar
+    map: oklahoma
+    seconds: 20
