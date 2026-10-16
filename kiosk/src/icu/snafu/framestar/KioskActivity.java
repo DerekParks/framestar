@@ -13,7 +13,6 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -34,7 +33,6 @@ public class KioskActivity extends Activity {
   private static final String PREF_URL = "url";
   private static final String PREF_SSID_URLS = "ssid_urls";
   private static final long RETRY_MS = 15_000;
-  private static final long WAKE_MS = 5_000;
   private static final long ESCAPE_HOLD_MS = 3_000;
   private static final float ESCAPE_SLOP_PX = 80;
 
@@ -91,6 +89,11 @@ public class KioskActivity extends Activity {
 
   /** VIEW data persists as the fallback URL; extra "ssid_urls" ("SSID=url;SSID=url") replaces the network map. */
   private void handleIntent(Intent intent) {
+    if (intent != null && WakeReceiver.ACTION_WAKE.equals(intent.getAction())) {
+      setDisplay(true);
+      loadForNetwork();
+      return;
+    }
     WebView.setWebContentsDebuggingEnabled(intent != null && intent.getBooleanExtra("debug", false));
     SharedPreferences.Editor prefs = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
     String ssidUrls = intent == null ? null : intent.getStringExtra("ssid_urls");
@@ -101,9 +104,13 @@ public class KioskActivity extends Activity {
     if (data != null) {
       load(data.toString());
     } else {
-      String networkUrl = urlForNetwork();
-      load(networkUrl != null ? networkUrl : url());
+      loadForNetwork();
     }
+  }
+
+  private void loadForNetwork() {
+    String networkUrl = urlForNetwork();
+    load(networkUrl != null ? networkUrl : url());
   }
 
   private String urlForNetwork() {
@@ -143,33 +150,37 @@ public class KioskActivity extends Activity {
     web.loadUrl(url);
   }
 
-  /** Off: drop the keep-awake flag and dim to minimum so the OS screen timeout turns the panel off. */
   private final class Bridge {
     @JavascriptInterface
     public void setDisplayOn(boolean on) {
+      runOnUiThread(() -> setDisplay(on));
+    }
+
+    /** Display off until {@code wakeAtMs}; the alarm fires through deep sleep, when page timers do not. */
+    @JavascriptInterface
+    public void sleepUntil(long wakeAtMs) {
       runOnUiThread(() -> {
-        WindowManager.LayoutParams attrs = getWindow().getAttributes();
-        attrs.screenBrightness = on
-            ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-            : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF;
-        getWindow().setAttributes(attrs);
-        if (on) {
-          getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-          wakeScreen();
-        } else {
-          getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
-        Log.i(TAG, "display " + (on ? "on" : "off"));
+        WakeReceiver.schedule(KioskActivity.this, wakeAtMs);
+        setDisplay(false);
       });
     }
   }
 
-  @SuppressWarnings("deprecation")
-  private void wakeScreen() {
-    PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-    PowerManager.WakeLock lock = pm.newWakeLock(
-        PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, TAG + ":wake");
-    lock.acquire(WAKE_MS);
+  /** Off: drop the keep-awake flag and dim to minimum so the OS screen timeout turns the panel off. */
+  private void setDisplay(boolean on) {
+    WindowManager.LayoutParams attrs = getWindow().getAttributes();
+    attrs.screenBrightness = on
+        ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF;
+    getWindow().setAttributes(attrs);
+    if (on) {
+      WakeReceiver.cancel(this);
+      getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      WakeReceiver.wakeScreen(this);
+    } else {
+      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+    Log.i(TAG, "display " + (on ? "on" : "off"));
   }
 
   private final class RetryingClient extends WebViewClient {

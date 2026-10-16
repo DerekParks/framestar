@@ -32,5 +32,6 @@
         <data android:scheme="https" />
       </intent-filter>
     </activity>
+    <receiver android:name=".WakeReceiver" android:exported="false" />
   </application>
 </manifest>

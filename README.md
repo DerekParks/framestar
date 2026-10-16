@@ -11,6 +11,7 @@ A WeatherStar 4000 style kiosk for a hacked Android photo frame. It cycles throu
 - **mountain**: NRCS SNOTEL temperature, snow depth and new snow for a list of sites
 
 From `quiet_hours` start to end the screen goes dark; otherwise Android's auto-brightness handles dimming.
+The kiosk sets an alarm for the end of quiet hours, so the frame wakes even after Android has suspended.
 
 A crawl along the bottom shows the Tempest reading and upcoming events.
 

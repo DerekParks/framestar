@@ -311,12 +311,25 @@ class QuietHours {
     this.clock = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   }
 
+  minuteOf(when) {
+    const parts = Object.fromEntries(this.clock.formatToParts(when).map((p) => [p.type, p.value]));
+    return Number(parts.hour) * 60 + Number(parts.minute);
+  }
+
   active(now = new Date()) {
-    const parts = Object.fromEntries(this.clock.formatToParts(now).map((p) => [p.type, p.value]));
-    const minute = Number(parts.hour) * 60 + Number(parts.minute);
+    const minute = this.minuteOf(now);
     return this.start <= this.end
       ? minute >= this.start && minute < this.end
       : minute >= this.start || minute < this.end;
+  }
+
+  /** Epoch ms of the next end; the second pass corrects for a DST shift overnight. */
+  endsAt(now = new Date()) {
+    const minutesLeft = (when) => (this.end - this.minuteOf(when) + 1440) % 1440;
+    let at = now.getTime() - (now.getTime() % 60000) + minutesLeft(now) * 60000;
+    const drift = minutesLeft(new Date(at));
+    if (drift) at += (drift > 720 ? drift - 1440 : drift) * 60000;
+    return at;
   }
 }
 
@@ -327,7 +340,9 @@ function setDisplay(on) {
 
 async function sleepThroughQuietHours(quiet) {
   if (!quiet || !quiet.active()) return;
-  setDisplay(false);
+  $('#quiet').classList.add('shown');
+  if (window.FramestarKiosk && window.FramestarKiosk.sleepUntil) window.FramestarKiosk.sleepUntil(quiet.endsAt());
+  else setDisplay(false);
   while (quiet.active()) await sleep(QUIET_POLL_MS);
   setDisplay(true);
   window.location.reload();
