@@ -13,6 +13,7 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -45,6 +46,8 @@ public class KioskActivity extends Activity {
   private final float[] escapeY = new float[3];
   private boolean escapeArmed;
   private WebView web;
+  private PowerManager.WakeLock cpuLock;
+  private WifiManager.WifiLock wifiLock;
   private String loadedUrl;
   private final BroadcastReceiver networkChanged = new BroadcastReceiver() {
     @Override
@@ -63,6 +66,12 @@ public class KioskActivity extends Activity {
         | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
         | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
         | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+    cpuLock = ((PowerManager) getSystemService(POWER_SERVICE))
+        .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG + ":quiet");
+    cpuLock.setReferenceCounted(false);
+    wifiLock = ((WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE))
+        .createWifiLock(WifiManager.WIFI_MODE_FULL, TAG + ":quiet");
+    wifiLock.setReferenceCounted(false);
     web = new WebView(this);
     WebSettings settings = web.getSettings();
     settings.setJavaScriptEnabled(true);
@@ -89,6 +98,7 @@ public class KioskActivity extends Activity {
   @Override
   protected void onDestroy() {
     unregisterReceiver(networkChanged);
+    stayAwake(false);
     super.onDestroy();
   }
 
@@ -167,13 +177,25 @@ public class KioskActivity extends Activity {
       runOnUiThread(() -> setDisplay(on));
     }
 
-    /** Display off until {@code wakeAtMs}; the alarm fires through deep sleep, when page timers do not. */
+    /** Display off until {@code wakeAtMs}, when the wake alarm turns it back on. */
     @JavascriptInterface
     public void sleepUntil(long wakeAtMs) {
       runOnUiThread(() -> {
         WakeReceiver.schedule(KioskActivity.this, wakeAtMs);
         setDisplay(false);
+        stayAwake(true);
       });
+    }
+  }
+
+  /** Keeps the CPU and Wi-Fi up with the panel off, so the wake alarm never depends on resuming from suspend. */
+  private void stayAwake(boolean awake) {
+    if (awake) {
+      cpuLock.acquire();
+      wifiLock.acquire();
+    } else {
+      if (cpuLock.isHeld()) cpuLock.release();
+      if (wifiLock.isHeld()) wifiLock.release();
     }
   }
 
@@ -186,6 +208,7 @@ public class KioskActivity extends Activity {
     getWindow().setAttributes(attrs);
     if (on) {
       WakeReceiver.cancel(this);
+      stayAwake(false);
       getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
       WakeReceiver.wakeScreen(this);
     } else {
