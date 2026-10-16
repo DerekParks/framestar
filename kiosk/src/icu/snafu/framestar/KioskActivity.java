@@ -33,11 +33,13 @@ public class KioskActivity extends Activity {
   private static final String PREF_URL = "url";
   private static final String PREF_SSID_URLS = "ssid_urls";
   private static final long RETRY_MS = 15_000;
+  private static final long CLOCK_RETRY_MS = 120_000;
   private static final long ESCAPE_HOLD_MS = 3_000;
   private static final float ESCAPE_SLOP_PX = 80;
 
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final Runnable retry = this::reload;
+  private final Runnable clockRetry = this::syncClock;
   private final Runnable escape = this::openSettings;
   private final float[] escapeX = new float[3];
   private final float[] escapeY = new float[3];
@@ -47,6 +49,7 @@ public class KioskActivity extends Activity {
   private final BroadcastReceiver networkChanged = new BroadcastReceiver() {
     @Override
     public void onReceive(Context context, Intent intent) {
+      syncClock();
       String url = urlForNetwork();
       if (url != null && !url.equals(loadedUrl)) load(url);
     }
@@ -73,6 +76,14 @@ public class KioskActivity extends Activity {
     setContentView(web);
     handleIntent(getIntent());
     registerReceiver(networkChanged, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+    syncClock();
+  }
+
+  private void syncClock() {
+    handler.removeCallbacks(clockRetry);
+    if (!ClockSync.clockUnset()) return;
+    ClockSync.forceNtpFetch(this);
+    handler.postDelayed(clockRetry, CLOCK_RETRY_MS);
   }
 
   @Override

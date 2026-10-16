@@ -58,6 +58,7 @@ adb shell pm disable com.DeviceTest           # system-uid app that can re-enabl
 device/webview-swap.sh device/downloads/webview.apk   # stock WebView 44 -> 106 (--rollback undoes)
 JAVA_HOME=<jdk17> FRAMESTAR_URL=http://10.0.0.117:8000/ kiosk/build.sh
 adb install -r kiosk/build/framestar-kiosk.apk
+adb shell pm grant icu.snafu.framestar android.permission.WRITE_SECURE_SETTINGS   # lets it force NTP
 ```
 
 WebView 106 is the LineageOS prebuilt pinned by SHA-256 in `device/webview-swap.sh`:
@@ -120,6 +121,8 @@ existing ones first.
 - YAML reads an unquoted `22:00` as the number 1320, so quote clock times.
 - Calendar text is stripped of emoji; Star4000 has none and the fallback blanked the slide.
 - Never `stop adbd` from `adb shell` on the frame; use `adb tcpip 5555`. Its IP changes every boot.
+- The frame has no RTC battery and boots at 1970. Android tries NTP three times, a minute apart, then waits a
+  day, so the kiosk toggles automatic time until the clock is set. That needs the `pm grant` above.
 
 ## Develop
 
