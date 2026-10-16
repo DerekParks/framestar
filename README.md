@@ -87,9 +87,10 @@ The front end is plain ES2020 and CSS with no build step. It avoids what WebView
 
 ## Deployment
 
-Production runs on `aquabats` (`~/framestar`, ports 8000/8080), on the same LAN as the frame.
-`config.yaml` is not in git; copy it alongside the repo. To update: `rsync` or `git pull` there,
-then `docker compose up -d --build`.
+Production runs on `aquabats` (ports 8000/8080), on the same LAN as the frame, as the `framestar`
+stack in the playbooks repo. Every push to `main` publishes `ghcr.io/derekparks/framestar`; the stack
+pulls it and holds a `config.yaml` whose secrets are `${VAR}` references. framestar expands `${VAR}`
+in any config string from its environment, and refuses to start if one is unset.
 
 The kiosk picks its server by Wi-Fi network name, checked at launch and on every network change.
 Build the map in with `FRAMESTAR_SSID_URLS="BoomerSooner=http://192.168.1.25:8090/;irish=http://10.0.0.117:8000/"`
