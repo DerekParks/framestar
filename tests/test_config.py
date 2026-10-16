@@ -1,4 +1,5 @@
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from framestar.config import Config, Immich
@@ -87,3 +88,31 @@ def test_calendar_slide_rejects_unknown_calendar(example_dict):
     example_dict["slides"][0]["calendars"] = ["Family", "Thunder"]
     with pytest.raises(ValidationError, match="Thunder"):
         Config.model_validate(example_dict)
+
+
+def test_load_config_expands_env_vars(tmp_path, monkeypatch, example_dict):
+    from framestar.config import load_config
+
+    monkeypatch.setenv("FRAMESTAR_TEMPEST_TOKEN", "tok-123")
+    monkeypatch.setenv("FRAMESTAR_CAL_HOST", "calendar.example")
+    example_dict["tempest"]["token"] = "${FRAMESTAR_TEMPEST_TOKEN}"
+    example_dict["calendars"][0]["url"] = "https://${FRAMESTAR_CAL_HOST}/basic.ics"
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(example_dict))
+
+    config = load_config(path)
+
+    assert config.tempest.token == "tok-123"
+    assert config.calendars[0].url == "https://calendar.example/basic.ics"
+
+
+def test_load_config_rejects_unset_env_var(tmp_path, monkeypatch, example_dict):
+    from framestar.config import load_config
+
+    monkeypatch.delenv("FRAMESTAR_MISSING", raising=False)
+    example_dict["tempest"]["token"] = "${FRAMESTAR_MISSING}"
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(example_dict))
+
+    with pytest.raises(KeyError, match="FRAMESTAR_MISSING"):
+        load_config(path)

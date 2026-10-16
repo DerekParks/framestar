@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from datetime import time
 from pathlib import Path
@@ -11,6 +12,7 @@ import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+ENV_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 class Location(BaseModel):
@@ -200,5 +202,16 @@ class Config(BaseModel):
         return ZoneInfo(self.timezone)
 
 
+def expand_env(value):
+    """Replaces ${VAR} in every string with the environment's value; an unset VAR is a KeyError."""
+    if isinstance(value, dict):
+        return {key: expand_env(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [expand_env(item) for item in value]
+    if isinstance(value, str):
+        return ENV_VAR.sub(lambda m: os.environ[m.group(1)], value)
+    return value
+
+
 def load_config(path: Path) -> Config:
-    return Config.model_validate(yaml.safe_load(path.read_text()))
+    return Config.model_validate(expand_env(yaml.safe_load(path.read_text())))
