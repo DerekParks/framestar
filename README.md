@@ -10,7 +10,8 @@ A WeatherStar 4000 style kiosk for a hacked Android photo frame. It cycles throu
 - **cams**: still frames from webcams (direct images, YouTube live, camstreamer embeds)
 - **mountain**: NRCS SNOTEL temperature, snow depth and new snow for a list of sites
 
-From `quiet_hours` start to end the screen goes dark; otherwise Android's auto-brightness handles dimming.
+From `quiet_hours` start to end the screen goes dark; otherwise Android's auto-brightness handles dimming,
+with the curve raised during device setup (`screen_auto_brightness_adj` below).
 The kiosk sets an alarm for the end of quiet hours, so the frame wakes even after Android has suspended.
 
 A crawl along the bottom shows the Tempest reading and upcoming events.
@@ -74,7 +75,9 @@ adb shell am start -a android.intent.action.VIEW -d http://10.0.0.117:8000/ -n i
 Holding three fingers still for three seconds opens Android Settings. `--ez debug true` on that
 `am start` enables WebView remote debugging until the next launch. During quiet hours the kiosk
 drops its keep-awake flag so Android's screen timeout turns the panel off; the frame ships with
-that timeout set to never, so set one: `adb shell settings put system screen_off_timeout 60000`. `kiosk/build.sh` needs build-tools 34,
+that timeout set to never, so set one: `adb shell settings put system screen_off_timeout 60000`.
+The stock auto-brightness curve puts a dark room at 11/255, which reads as blank on this panel; lift it to
+about 87/255 with `adb shell settings put system screen_auto_brightness_adj 1.0`. `kiosk/build.sh` needs build-tools 34,
 platform 34 and a JDK 17 `javac`: build-tools 34's `d8` crashes on JDK 21 class files.
 
 For testing against a desktop over USB, `adb reverse tcp:8000 tcp:8000 && adb reverse tcp:8080 tcp:8080`
